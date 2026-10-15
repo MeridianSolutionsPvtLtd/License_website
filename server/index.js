@@ -19,28 +19,45 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
 // Database Connection
-const MONGO_URI = process.env.mongo_uri;
+const MONGO_URI = process.env.mongo_uri || process.env.MONGO_URI;
 
-mongoose.connect(MONGO_URI)
-    .then(() => console.log('MongoDB Connected'))
-    .catch(err => console.error('MongoDB Connection Error:', err));
+if (MONGO_URI) {
+    mongoose.connect(MONGO_URI)
+        .then(() => console.log('MongoDB Connected'))
+        .catch(err => console.error('MongoDB Connection Error:', err));
+} else {
+    console.warn('Warning: Neither mongo_uri nor MONGO_URI environment variable is defined.');
+}
 
 // Routes
 app.use('/api', apiRoutes);
 
-// Serve static assets if in production
-if (process.env.NODE_ENV === 'production') {
-    app.use(express.static('dist'));
-    app.get('*', (req, res) => {
-        res.sendFile(path.resolve(__dirname, '../dist', 'index.html'));
-    });
-}
+// Serve static assets from dist
+const distPath = path.resolve(__dirname, '../dist');
+app.use(express.static(distPath));
 
-// Export for Vercel
+app.get('*', (req, res) => {
+    const indexPath = path.join(distPath, 'index.html');
+    res.sendFile(indexPath, (err) => {
+        if (err) {
+            res.status(200).send(`
+                <!DOCTYPE html>
+                <html>
+                <head><title>SaaSMap Portal</title></head>
+                <body style="font-family: sans-serif; padding: 40px; text-align: center;">
+                    <h2>Backend Server is running!</h2>
+                    <p>However, the frontend build was not found in <code>dist/</code>.</p>
+                    <p>Please ensure <code>npm run build</code> runs during deployment.</p>
+                </body>
+                </html>
+            `);
+        }
+    });
+});
+
+// Start server
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
+
 export default app;
-
-if (process.env.NODE_ENV !== 'production' || process.env.VERCEL_DEV) {
-    app.listen(PORT, () => {
-        console.log(`Server running on port ${PORT}`);
-    });
-}
